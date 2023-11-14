@@ -7,40 +7,49 @@ mod checkpoint_output;
 mod metrics;
 
 use crate::authority::{AuthorityState, EffectsNotifyRead};
+use crate::authority_client::{make_network_authority_clients_with_network_config, AuthorityAPI};
 use crate::checkpoints::causal_order::CausalOrder;
 use crate::checkpoints::checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput};
 pub use crate::checkpoints::checkpoint_output::{
     LogCheckpointOutput, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
 };
 pub use crate::checkpoints::metrics::CheckpointMetrics;
-use crate::stake_aggregator::{InsertResult, StakeAggregator};
+use crate::stake_aggregator::{InsertResult, MultiStakeAggregator};
 use crate::state_accumulator::StateAccumulator;
+use diffy::create_patch;
 use futures::future::{select, Either};
 use futures::FutureExt;
+use itertools::Itertools;
 use mysten_metrics::{monitored_scope, spawn_monitored_task, MonitoredFutureExt};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use sui_network::default_mysten_network_config;
+use tokio::sync::oneshot;
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use crate::consensus_handler::SequencedConsensusTransactionKey;
-use std::collections::HashSet;
+use chrono::Utc;
+use rand::seq::SliceRandom;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_protocol_config::ProtocolVersion;
 use sui_types::base_types::{EpochId, TransactionDigest};
-use sui_types::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
+use sui_types::crypto::AuthorityStrongQuorumSignInfo;
 use sui_types::digests::{CheckpointContentsDigest, CheckpointDigest};
 use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
 use sui_types::error::{SuiError, SuiResult};
 use sui_types::gas::GasCostSummary;
 use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::SignedCheckpointSummary;
 use sui_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     CheckpointSignatureMessage, CheckpointSummary, CheckpointTimestamp, EndOfEpochData,
     FullCheckpointContents, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
 };
+use sui_types::messages_checkpoint::{CheckpointRequest, SignedCheckpointSummary};
 use sui_types::messages_consensus::ConsensusTransactionKey;
 use sui_types::signature::GenericSignature;
 use sui_types::sui_system_state::{SuiSystemState, SuiSystemStateTrait};
@@ -650,6 +659,7 @@ pub struct CheckpointAggregator {
     exit: watch::Receiver<()>,
     current: Option<CheckpointSignatureAggregator>,
     output: Box<dyn CertifiedCheckpointOutput>,
+    state: Arc<AuthorityState>,
     metrics: Arc<CheckpointMetrics>,
 }
 
@@ -658,7 +668,10 @@ pub struct CheckpointSignatureAggregator {
     next_index: u64,
     summary: CheckpointSummary,
     digest: CheckpointDigest,
-    signatures: StakeAggregator<AuthoritySignInfo, true>,
+    /// Aggregates voting stake for each signed checkpoint proposal by authority
+    signatures_by_digest: MultiStakeAggregator<CheckpointDigest, CheckpointSummary, true>,
+    tables: Arc<CheckpointStore>,
+    state: Arc<AuthorityState>,
     metrics: Arc<CheckpointMetrics>,
 }
 
@@ -1200,6 +1213,7 @@ impl CheckpointAggregator {
         notify: Arc<Notify>,
         exit: watch::Receiver<()>,
         output: Box<dyn CertifiedCheckpointOutput>,
+        state: Arc<AuthorityState>,
         metrics: Arc<CheckpointMetrics>,
     ) -> Self {
         let current = None;
@@ -1210,6 +1224,7 @@ impl CheckpointAggregator {
             exit,
             current,
             output,
+            state,
             metrics,
         }
     }
@@ -1278,7 +1293,11 @@ impl CheckpointAggregator {
                     next_index: 0,
                     digest: summary.digest(),
                     summary,
-                    signatures: StakeAggregator::new(self.epoch_store.committee().clone()),
+                    signatures_by_digest: MultiStakeAggregator::new(
+                        self.epoch_store.committee().clone(),
+                    ),
+                    tables: self.tables.clone(),
+                    state: self.state.clone(),
                     metrics: self.metrics.clone(),
                 });
                 self.current.as_mut().unwrap()
@@ -1357,23 +1376,9 @@ impl CheckpointSignatureAggregator {
         let their_digest = *data.summary.digest();
         let (_, signature) = data.summary.into_data_and_sig();
         let author = signature.authority;
-        // It is not guaranteed that signature.authority == narwhal_cert.author, but we do verify
-        // the signature so we know that the author signed the message at some point.
-        if their_digest != self.digest {
-            self.metrics.remote_checkpoint_forks.inc();
-            warn!(
-                checkpoint_seq = self.summary.sequence_number,
-                "Validator {:?} has mismatching checkpoint digest {}, we have digest {}",
-                author.concise(),
-                their_digest,
-                self.digest
-            );
-            return Err(());
-        }
-
         let envelope =
             SignedCheckpointSummary::new_from_data_and_sig(self.summary.clone(), signature);
-        match self.signatures.insert(envelope) {
+        match self.signatures_by_digest.insert(their_digest, envelope) {
             InsertResult::Failed { error } => {
                 warn!(
                     checkpoint_seq = self.summary.sequence_number,
@@ -1381,14 +1386,215 @@ impl CheckpointSignatureAggregator {
                     author.concise(),
                     error
                 );
+                self.check_for_split_brain();
                 Err(())
             }
-            InsertResult::QuorumReached(cert) => Ok(cert),
+            InsertResult::QuorumReached(cert) => {
+                // It is not guaranteed that signature.authority == narwhal_cert.author, but we do verify
+                // the signature so we know that the author signed the message at some point.
+                if their_digest != self.digest {
+                    self.metrics.remote_checkpoint_forks.inc();
+                    warn!(
+                        checkpoint_seq = self.summary.sequence_number,
+                        "Validator {:?} has mismatching checkpoint digest {}, we have digest {}",
+                        author.concise(),
+                        their_digest,
+                        self.digest
+                    );
+                    return Err(());
+                }
+                Ok(cert)
+            }
             InsertResult::NotEnoughVotes {
                 bad_votes: _,
                 bad_authorities: _,
-            } => Err(()),
+            } => {
+                self.check_for_split_brain();
+                Err(())
+            }
         }
+    }
+
+    /// Check if there is a split brain condition in checkpoint signature aggregation, defined
+    /// as any state wherein it is no longer possible to achieve quorum on a checkpoint proposal,
+    /// irrespective of the outcome of any outstanding votes.
+    fn check_for_split_brain(&self) {
+        if self.signatures_by_digest.quorum_unreachable() {
+            // TODO: at this point we should immediately halt processing
+            // of new transaction certificates to avoid building on top of
+            // forked output
+            // self.halt_all_execution();
+
+            let digests_by_stake_messages = self
+                .signatures_by_digest
+                .get_all_unique_values()
+                .into_iter()
+                .sorted_by_key(|(_, (_, stake))| -(*stake as i64))
+                .map(|(digest, (_authorities, total_stake))| {
+                    format!("{:?} (total stake: {})", digest, total_stake)
+                })
+                .collect::<Vec<String>>();
+            error!(
+                checkpoint_seq = self.summary.sequence_number,
+                "Split brain detected in checkpoint signature aggregation! Remaining stake: {:?}, Digests by stake: {:?}",
+                self.signatures_by_digest.uncommitted_stake(),
+                digests_by_stake_messages,
+            );
+            self.metrics.split_brain_checkpoint_forks.inc();
+            self.diagnose_split_brain();
+
+            #[cfg(simtest)]
+            panic!("Split brain detected in checkpoint signature aggregation!");
+        }
+    }
+
+    /// Create data dump containing relevant data for diagnosing cause of the
+    /// split brain by querying one disagreeing validator for full checkpoint contents.
+    /// To minimize peer chatter, we only query one validator at random from each
+    /// disagreeing faction, as all honest validators that participated in this round may
+    /// inevitably run the same process.
+    fn diagnose_split_brain(&self) {
+        let time = Utc::now();
+        let mut rng = rand::thread_rng();
+        let all_unique_values = self.signatures_by_digest.get_all_unique_values();
+        // collect one random disagreeing validator per differing digest
+        let digest_to_validator = all_unique_values
+            .iter()
+            .filter_map(|(digest, (validators, _))| {
+                if *digest != self.digest {
+                    let random_validator = validators.choose(&mut rng).unwrap();
+                    Some((*digest, *random_validator))
+                } else {
+                    None
+                }
+            })
+            .collect::<HashMap<_, _>>();
+        if digest_to_validator.is_empty() {
+            panic!(
+                "Given split brain condition, there should be at \
+                least one validator that disagrees with local signature"
+            );
+        }
+
+        let sui_system_state = self
+            .state
+            .database
+            .get_sui_system_state_object()
+            .expect("Failed to get system state object");
+        let committee = sui_system_state.get_current_epoch_committee();
+        let network_config = default_mysten_network_config();
+        let network_clients =
+            make_network_authority_clients_with_network_config(&committee, &network_config)
+                .expect("Failed to make authority clients from committee {committee}");
+
+        // spawn async task for querying all disagreeing validators
+        let local_summary = self.summary.clone();
+        let (tx, rcv) = oneshot::channel();
+        tokio::spawn(async move {
+            let response_futures = digest_to_validator
+                .values()
+                .cloned()
+                .map(|validator| {
+                    let client = network_clients
+                        .get(&validator)
+                        .expect("Failed to get network client");
+                    let request = CheckpointRequest {
+                        sequence_number: Some(local_summary.sequence_number),
+                        request_content: true,
+                    };
+                    client.handle_checkpoint(request)
+                })
+                .collect::<Vec<_>>();
+
+            let digest_name_pair = digest_to_validator.iter();
+            let response_data = futures::future::join_all(response_futures)
+                .await
+                .into_iter()
+                .zip(digest_name_pair)
+                .filter_map(|(response, (digest, name))| match response {
+                    Ok(response) => {
+                        match (response.checkpoint, response.contents) {
+                            (Some(summary), Some(contents)) => {
+                                Some((*name, *digest, summary, contents))
+                            }
+                            (None, _) => {
+                                error!("Summary for checkpoint {:?} not found on validator {:?}", local_summary.sequence_number, name);
+                                None
+                            }
+                            (_, None) => {
+                                error!("Contents for checkpoint {:?} not found on validator {:?}", local_summary.sequence_number, name);
+                                None
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to get checkpoint contents from validator for fork diagnostics: {:?}", e);
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            tx.send(response_data)
+                .expect("Sending response data between tasks failed");
+        });
+
+        let response_data = rcv
+            .blocking_recv()
+            .expect("Failed to receive response data from async task");
+
+        // TODO replace with full checkpoint contents when we have RPC support for this.
+        // As of today, this is only available (via State Sync) after we have verified the checkpoint
+        let local_checkpoint_contents = self
+            .tables
+            .get_checkpoint_contents(&self.summary.content_digest)
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Could not find checkpoint contents for digest {:?}",
+                    self.digest
+                )
+            })
+            .unwrap_or_else(|| panic!("Could not find local full checkpoint contents for checkpoint {:?}, digest {:?}",
+                self.summary.sequence_number, self.digest));
+        let local_contents_text = format!("{:?}", local_checkpoint_contents);
+
+        let local_summary_text = format!("{:?}", self.summary);
+        let diff_patches = response_data
+            .iter()
+            .map(|(name, digest, summary, contents)| {
+                let other_contents_text = format!("{:?}", contents);
+                let other_summary = summary.data();
+                let other_summary_text = format!("{:?}", other_summary);
+                let summary_patch = create_patch(&local_summary_text, &other_summary_text);
+                let contents_patch = create_patch(&local_contents_text, &other_contents_text);
+                format!(
+                    "Checkpoint: {:?}\n\
+                    Local validator (original): {:?}, digest: {:?}\n\
+                    Other validator (modified): {:?}, digest: {:?}\n\
+                    Summary Diff: \n{:?}\n\
+                    Contents Diff: \n{:?}",
+                    self.summary.sequence_number,
+                    self.state.name,
+                    self.digest,
+                    name,
+                    digest,
+                    summary_patch,
+                    contents_patch,
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n\n");
+
+        let header = format!(
+            "Checkpoint Fork Dump\n\
+            UTC Datetime: {}\n\n",
+            time,
+        );
+        let fork_logs_text = format!("{}\n\n{}", header, diff_patches);
+        let path = tempfile::tempdir()
+            .expect("Failed to create tempdir")
+            .into_path()
+            .join(Path::new("checkpoint_fork_dump.txt"));
+        let mut file = File::create(path).unwrap();
+        write!(file, "{}", fork_logs_text).unwrap();
     }
 }
 
@@ -1433,7 +1639,7 @@ impl CheckpointService {
         let (exit_snd, exit_rcv) = watch::channel(());
 
         let builder = CheckpointBuilder::new(
-            state,
+            state.clone(),
             checkpoint_store.clone(),
             epoch_store.clone(),
             notify_builder.clone(),
@@ -1455,6 +1661,7 @@ impl CheckpointService {
             notify_aggregator.clone(),
             exit_rcv,
             certified_checkpoint_output,
+            state.clone(),
             metrics.clone(),
         );
 
@@ -1566,19 +1773,21 @@ impl PendingCheckpoint {
 mod tests {
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
-    use crate::state_accumulator::StateAccumulator;
     use async_trait::async_trait;
     use shared_crypto::intent::{Intent, IntentScope};
     use std::collections::{BTreeMap, HashMap};
     use std::ops::Deref;
     use sui_macros::sim_test;
-    use sui_types::base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest};
-    use sui_types::crypto::Signature;
+    use sui_types::base_types::{
+        ExecutionDigests, ObjectID, SequenceNumber, TransactionEffectsDigest,
+    };
+    use sui_types::crypto::{AuthoritySignInfo, Signature};
     use sui_types::effects::TransactionEffects;
     use sui_types::messages_checkpoint::SignedCheckpointSummary;
     use sui_types::move_package::MovePackage;
     use sui_types::object;
     use sui_types::transaction::{GenesisObject, VerifiedTransaction};
+    use test_cluster::TestClusterBuilder;
     use tokio::sync::mpsc;
 
     #[sim_test]

@@ -5,7 +5,6 @@ use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
 use crate::writer::ArchiveWriter;
 use crate::{read_manifest, verify_archive_with_local_store, write_manifest, Manifest};
 use anyhow::{anyhow, Context, Result};
-use more_asserts as ma;
 use object_store::DynObjectStore;
 use prometheus::Registry;
 use std::fs;
