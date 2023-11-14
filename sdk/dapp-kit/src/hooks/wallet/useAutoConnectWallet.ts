@@ -1,8 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useQuery } from '@tanstack/react-query';
+import type { WalletWithRequiredFeatures } from '@mysten/wallet-standard';
+import { useMutation } from '@tanstack/react-query';
+import { useLayoutEffect } from 'react';
 
+import { walletMutationKeys } from '../../constants/walletMutationKeys.js';
 import { useConnectWallet } from './useConnectWallet.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWallets } from './useWallets.js';
