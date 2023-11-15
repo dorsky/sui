@@ -23,8 +23,8 @@ const standards = [
 	'standards/display',
 	{
 		type: 'link',
-		label: 'Wallet Kit',
-		href: 'https://sui-typescript-docs.vercel.app/wallet-kit',
+		label: 'Wallet Standard',
+		href: 'https://sui-typescript-docs.vercel.app/dapp-kit/wallet-standard',
 	},
 ];
 module.exports = standards;
