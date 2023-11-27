@@ -1661,10 +1661,6 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         cfg.feature_flags.shared_object_deletion = true;
                     }
-
-                    // Add costs for poseidon::poseidon_bn254
-                    cfg.poseidon_bn254_cost_base = Some(260);
-                    cfg.poseidon_bn254_cost_per_block = Some(10);
                 }
                 32 => {
                     cfg.feature_flags.accept_zklogin_in_multisig = true;
@@ -1682,7 +1678,8 @@ impl ProtocolConfig {
 
                     // enable nw cert v2 on mainnet
                     cfg.feature_flags.narwhal_certificate_v2 = true;
-
+                }
+                33 => {
                     // Add costs for poseidon::poseidon_bn254
                     cfg.poseidon_bn254_cost_base = Some(260);
                     cfg.poseidon_bn254_cost_per_block = Some(10);
