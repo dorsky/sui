@@ -12,7 +12,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-const MAX_PROTOCOL_VERSION: u64 = 32;
+const MAX_PROTOCOL_VERSION: u64 = 33;
 
 // Record history of protocol version allocations here:
 //
@@ -97,6 +97,7 @@ const MAX_PROTOCOL_VERSION: u64 = 32;
 //             Enable transfer to object in testnet.
 //             Enable Narwhal CertificateV2 on mainnet
 //             Make critbit tree and order getters public in deepbook.
+// Version 33: Add poseidon_bn254 function.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1678,7 +1679,8 @@ impl ProtocolConfig {
 
                     // enable nw cert v2 on mainnet
                     cfg.feature_flags.narwhal_certificate_v2 = true;
-
+                }
+                33 => {
                     // Add costs for poseidon::poseidon_bn254
                     cfg.poseidon_bn254_cost_base = Some(260);
                     cfg.poseidon_bn254_cost_per_block = Some(10);
