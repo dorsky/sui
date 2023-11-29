@@ -1,6 +1,6 @@
 processed 8 tasks
 
-task 1 'run-graphql'. lines 8-71:
+task 1 'run-graphql'. lines 8-73:
 Response: {
   "data": {
     "transactionBlockConnection": {
@@ -73,6 +73,7 @@ Response: {
             ],
             "objectChanges": [
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -81,6 +82,7 @@ Response: {
                 }
               },
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000002",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -89,6 +91,7 @@ Response: {
                 }
               },
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000003",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -97,6 +100,7 @@ Response: {
                 }
               },
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000005",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -105,6 +109,7 @@ Response: {
                 }
               },
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000006",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -113,6 +118,7 @@ Response: {
                 }
               },
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000007",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -121,6 +127,7 @@ Response: {
                 }
               },
               {
+                "location": "0x000000000000000000000000000000000000000000000000000000000000dee9",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -129,6 +136,7 @@ Response: {
                 }
               },
               {
+                "location": "0x14498a4368db5cefb6ec2fe91cf18636c5d8fc08b91e3d1417ccb0866e8b95d4",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -137,6 +145,7 @@ Response: {
                 }
               },
               {
+                "location": "0x168e8bf1317ef81399ea9fabee9e217067a257731903b45ca4915c8d049b3940",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -145,6 +154,7 @@ Response: {
                 }
               },
               {
+                "location": "0x1ca7fcc2fe39d93fd041dbcbcc30b33a366b44cab26acd52e5d99f6cf2a0a6e7",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -153,6 +163,7 @@ Response: {
                 }
               },
               {
+                "location": "0x3fa556a7dadc08367a52a6eb4a3b602abbc21446c1f703d2ac46866a403d718e",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -161,6 +172,7 @@ Response: {
                 }
               },
               {
+                "location": "0x41a7f84bd3a02e7e5bea80580e40cec419d40ef9925a51cf0128ad84b40f8041",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -169,6 +181,7 @@ Response: {
                 }
               },
               {
+                "location": "0x46ea41cad4b69f493f5cf7fcb41c96e63ea97c206107d9b25d29a7d28f683ca7",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -177,6 +190,7 @@ Response: {
                 }
               },
               {
+                "location": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -185,6 +199,7 @@ Response: {
                 }
               },
               {
+                "location": "0xcfecb053c69314e75f36561910f3535dd466b6e2e3593708f370e80424617ae7",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -193,6 +208,7 @@ Response: {
                 }
               },
               {
+                "location": "0xd73b7dd2e4b15b4030f2d1af51a8e8335d37c9723565005f498df27d8a6d3a4d",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -228,10 +244,10 @@ Response: {
   }
 }
 
-task 3 'create-checkpoint'. lines 75-75:
+task 3 'create-checkpoint'. lines 77-77:
 Checkpoint created: 1
 
-task 4 'run-graphql'. lines 77-143:
+task 4 'run-graphql'. lines 79-147:
 Response: {
   "data": {
     "transactionBlockConnection": {
@@ -276,6 +292,7 @@ Response: {
             "balanceChanges": [],
             "objectChanges": [
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000006",
                 "idCreated": false,
                 "idDeleted": false,
                 "outputState": {
@@ -311,10 +328,10 @@ Response: {
   }
 }
 
-task 6 'advance-epoch'. lines 147-147:
+task 6 'advance-epoch'. lines 151-151:
 Epoch advanced: 0
 
-task 7 'run-graphql'. lines 149-216:
+task 7 'run-graphql'. lines 153-222:
 Response: {
   "data": {
     "transactionBlockConnection": {
@@ -361,6 +378,7 @@ Response: {
             "balanceChanges": [],
             "objectChanges": [
               {
+                "location": "0x0000000000000000000000000000000000000000000000000000000000000005",
                 "idCreated": false,
                 "idDeleted": false,
                 "outputState": {
@@ -369,6 +387,7 @@ Response: {
                 }
               },
               {
+                "location": "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
@@ -377,17 +396,19 @@ Response: {
                 }
               },
               {
+                "location": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+                "idCreated": false,
+                "idDeleted": true,
+                "outputState": null
+              },
+              {
+                "location": "0xa84a25da7fef87ac6141a4920a87564ddb5bd8964333f04e7bd49facb831ba43",
                 "idCreated": true,
                 "idDeleted": false,
                 "outputState": {
                   "location": "0xa84a25da7fef87ac6141a4920a87564ddb5bd8964333f04e7bd49facb831ba43",
                   "digest": "2dUtbkQSCPJewe9WJsxvAdu1rft1AVXwXMuWYFkYnAxr"
                 }
-              },
-              {
-                "idCreated": false,
-                "idDeleted": true,
-                "outputState": null
               }
             ],
             "gasEffects": {
