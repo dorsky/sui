@@ -51,7 +51,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::Map;
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::AuthorityStore;
+use crate::authority::{AuthorityState, AuthorityStore};
 use crate::checkpoints::checkpoint_executor::data_ingestion_handler::store_checkpoint_locally;
 use crate::state_accumulator::StateAccumulator;
 use crate::transaction_manager::TransactionManager;
@@ -75,8 +75,7 @@ const CHECKPOINT_PROGRESS_LOG_COUNT_INTERVAL: u64 = 5000;
 pub struct CheckpointExecutor {
     mailbox: broadcast::Receiver<VerifiedCheckpoint>,
     checkpoint_store: Arc<CheckpointStore>,
-    authority_store: Arc<AuthorityStore>,
-    execution_read: Arc<dyn ExecutionCacheRead>,
+    cache_reader: Arc<dyn ExecutionCacheRead>,
     tx_manager: Arc<TransactionManager>,
     accumulator: Arc<StateAccumulator>,
     config: CheckpointExecutorConfig,
@@ -87,9 +86,7 @@ impl CheckpointExecutor {
     pub fn new(
         mailbox: broadcast::Receiver<VerifiedCheckpoint>,
         checkpoint_store: Arc<CheckpointStore>,
-        authority_store: Arc<AuthorityStore>,
-        execution_read: Arc<dyn ExecutionCacheRead>,
-        tx_manager: Arc<TransactionManager>,
+        state: Arc<AuthorityState>,
         accumulator: Arc<StateAccumulator>,
         config: CheckpointExecutorConfig,
         prometheus_registry: &Registry,
@@ -97,9 +94,8 @@ impl CheckpointExecutor {
         Self {
             mailbox,
             checkpoint_store,
-            authority_store,
-            execution_read,
-            tx_manager,
+            cache_reader: state.get_cache_reader().clone(),
+            tx_manager: state.transaction_manager().clone(),
             accumulator,
             config,
             metrics: CheckpointExecutorMetrics::new(prometheus_registry),
@@ -109,17 +105,14 @@ impl CheckpointExecutor {
     pub fn new_for_tests(
         mailbox: broadcast::Receiver<VerifiedCheckpoint>,
         checkpoint_store: Arc<CheckpointStore>,
-        authority_store: Arc<AuthorityStore>,
-        execution_read: Arc<dyn ExecutionCacheRead>,
-        tx_manager: Arc<TransactionManager>,
+        state: Arc<AuthorityState>,
         accumulator: Arc<StateAccumulator>,
     ) -> Self {
         Self {
             mailbox,
             checkpoint_store,
-            authority_store,
-            execution_read,
-            tx_manager,
+            cache_reader: state.get_cache_reader().clone(),
+            tx_manager: state.transaction_manager().clone(),
             accumulator,
             config: Default::default(),
             metrics: CheckpointExecutorMetrics::new_for_tests(),
@@ -388,7 +381,7 @@ impl CheckpointExecutor {
 
         let (execution_digests, all_tx_digests, executable_txns) = get_unexecuted_transactions(
             checkpoint.clone(),
-            self.authority_store.clone(),
+            self.cache_reader.as_ref(),
             self.checkpoint_store.clone(),
             epoch_store.clone(),
         );
@@ -434,17 +427,15 @@ impl CheckpointExecutor {
             .iter()
             .filter(|(tx, _)| tx.contains_shared_object())
             .map(|(tx, _)| {
-                effects_digests
+                *effects_digests
                     .get(tx.digest())
                     .expect("Transaction digest not found in effects_digests")
             })
             .collect::<Vec<_>>();
 
         let digest_to_effects: HashMap<TransactionDigest, TransactionEffects> = self
-            .authority_store
-            .perpetual_tables
-            .effects
-            .multi_get(shared_effects_digests.clone())?
+            .cache_reader
+            .multi_get_effects(&shared_effects_digests)?
             .into_iter()
             .zip(shared_effects_digests)
             .map(|(fx, fx_digest)| {
@@ -465,7 +456,7 @@ impl CheckpointExecutor {
                     .acquire_shared_locks_from_effects(
                         tx,
                         digest_to_effects.get(tx.digest()).unwrap(),
-                        &self.authority_store,
+                        self.cache_reader.as_ref(),
                     )
                     .await?;
             }
@@ -489,7 +480,7 @@ impl CheckpointExecutor {
         let local_execution_timeout_sec = self.config.local_execution_timeout_sec;
         let data_ingestion_dir = self.config.data_ingestion_dir.clone();
         let checkpoint_store = self.checkpoint_store.clone();
-        let authority_store = self.authority_store.clone();
+        let cache_reader = self.cache_reader.clone();
         let tx_manager = self.tx_manager.clone();
         let accumulator = self.accumulator.clone();
         let metrics = self.metrics.clone();
@@ -499,7 +490,7 @@ impl CheckpointExecutor {
                 all_tx_digests,
                 checkpoint.clone(),
                 checkpoint_store,
-                authority_store,
+                cache_reader,
                 epoch_store,
                 tx_manager,
                 accumulator,
@@ -663,7 +654,7 @@ async fn handle_execution_effects(
     all_tx_digests: Vec<TransactionDigest>,
     checkpoint: VerifiedCheckpoint,
     checkpoint_store: Arc<CheckpointStore>,
-    authority_store: Arc<AuthorityStore>,
+    cache_reader: Arc<dyn ExecutionCacheRead>,
     epoch_store: Arc<AuthorityPerEpochStore>,
     transaction_manager: Arc<TransactionManager>,
     accumulator: Arc<StateAccumulator>,
@@ -676,7 +667,7 @@ async fn handle_execution_effects(
     // Whether the checkpoint is next to execute and blocking additional executions.
     let mut blocking_execution = false;
     loop {
-        let effects_future = authority_store.notify_read_executed_effects(all_tx_digests.clone());
+        let effects_future = cache_reader.notify_read_executed_effects(all_tx_digests.clone());
 
         match timeout(log_timeout_sec, effects_future).await {
             Err(_elapsed) => {
@@ -711,7 +702,7 @@ async fn handle_execution_effects(
 
                 // Only log details when the checkpoint is next to execute, but has not finished
                 // execution within log_timeout_sec.
-                let missing_digests: Vec<TransactionDigest> = authority_store
+                let missing_digests: Vec<TransactionDigest> = cache_reader
                     .multi_get_executed_effects_digests(&all_tx_digests)
                     .expect("multi_get_executed_effects cannot fail")
                     .iter()
@@ -759,7 +750,7 @@ async fn handle_execution_effects(
                         tx_digest,
                         expected_effects_digest,
                         &actual_effects.digest(),
-                        authority_store.clone(),
+                        cache_reader.as_ref(),
                     );
                 }
 
@@ -769,7 +760,7 @@ async fn handle_execution_effects(
                 // the change epoch tx, which is done after all other checkpoint execution
                 if checkpoint.end_of_epoch_data.is_none() {
                     finalize_checkpoint(
-                        authority_store.clone(),
+                        cache_reader.as_ref(),
                         checkpoint_store.clone(),
                         &all_tx_digests,
                         epoch_store.clone(),
@@ -791,10 +782,10 @@ fn assert_not_forked(
     tx_digest: &TransactionDigest,
     expected_digest: &TransactionEffectsDigest,
     actual_effects_digest: &TransactionEffectsDigest,
-    authority_store: Arc<AuthorityStore>,
+    cache_reader: &dyn ExecutionCacheRead,
 ) {
     if *expected_digest != *actual_effects_digest {
-        let actual_effects = authority_store
+        let actual_effects = cache_reader
             .get_executed_effects(tx_digest)
             .expect("get_executed_effects cannot fail")
             .expect("actual effects should exist");
@@ -873,7 +864,8 @@ fn extract_end_of_epoch_tx(
 // execution digests, transaction digests, and transactions to be executed.
 fn get_unexecuted_transactions(
     checkpoint: VerifiedCheckpoint,
-    authority_store: Arc<AuthorityStore>,
+    //authority_store: Arc<AuthorityStore>,
+    cache_reader: &dyn ExecutionCacheRead,
     checkpoint_store: Arc<CheckpointStore>,
     epoch_store: Arc<AuthorityPerEpochStore>,
 ) -> (
@@ -914,7 +906,7 @@ fn get_unexecuted_transactions(
             .expect("Final checkpoint must have at least one transaction")
             .transaction;
 
-        let change_epoch_tx = authority_store
+        let change_epoch_tx = cache_reader
             .get_transaction_block(&change_epoch_tx_digest)
             .expect("read cannot fail")
             .unwrap_or_else(||
@@ -929,7 +921,7 @@ fn get_unexecuted_transactions(
     let all_tx_digests: Vec<TransactionDigest> =
         execution_digests.iter().map(|tx| tx.transaction).collect();
 
-    let executed_effects_digests = authority_store
+    let executed_effects_digests = cache_reader
         .multi_get_executed_effects_digests(&all_tx_digests)
         .expect("failed to read executed_effects from store");
 
@@ -949,7 +941,7 @@ fn get_unexecuted_transactions(
                         tx_digest,
                         effects_digest,
                         actual_effects_digest,
-                        authority_store.clone(),
+                        cache_reader,
                     );
                     None
                 }
@@ -974,7 +966,7 @@ fn get_unexecuted_transactions(
             })
             .collect()
     } else {
-        authority_store
+        cache_reader
             .multi_get_transaction_blocks(&unexecuted_txns)
             .expect("Failed to get checkpoint txes from store")
             .into_iter()
