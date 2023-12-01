@@ -10,10 +10,10 @@ use crate::execution_status::ExecutionStatus;
 use crate::gas::GasCostSummary;
 use crate::object::Owner;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
 
-use super::{ObjectChange, IDOperation};
+use super::{IDOperation, ObjectChange};
 
 /// The response from processing a transaction or a certified transaction
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -159,83 +159,64 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     }
 
     fn object_changes(&self) -> Vec<ObjectChange> {
-        let modified_at: BTreeMap<_, _> = self
-            .modified_at_versions
-            .iter()
-            .copied()
-            .collect();
+        let modified_at: BTreeMap<_, _> = self.modified_at_versions.iter().copied().collect();
 
-        let created = self
-            .created
-            .iter()
-            .map(|((id, v, d), _)| ObjectChange {
-                id: *id,
-                input_version: None,
-                input_digest: None,
-                output_version: Some(*v),
-                output_digest: Some(*d),
-                id_operation: IDOperation::Created,
-            });
+        let created = self.created.iter().map(|((id, v, d), _)| ObjectChange {
+            id: *id,
+            input_version: None,
+            input_digest: None,
+            output_version: Some(*v),
+            output_digest: Some(*d),
+            id_operation: IDOperation::Created,
+        });
 
-        let mutated = self
-            .mutated
-            .iter()
-            .map(|((id, v, d), _)| ObjectChange {
-                id: *id,
-                input_version: modified_at.get(id).copied(),
-                input_digest: None,
-                output_version: Some(*v),
-                output_digest: Some(*d),
-                id_operation: IDOperation::None,
-            });
+        let mutated = self.mutated.iter().map(|((id, v, d), _)| ObjectChange {
+            id: *id,
+            input_version: modified_at.get(id).copied(),
+            input_digest: None,
+            output_version: Some(*v),
+            output_digest: Some(*d),
+            id_operation: IDOperation::None,
+        });
 
-        let unwrapped = self
-            .unwrapped
-            .iter()
-            .map(|((id, v, d), _)| ObjectChange {
-                id: *id,
-                input_version: None,
-                input_digest: None,
-                output_version: Some(*v),
-                output_digest: Some(*d),
-                id_operation: IDOperation::None,
-            });
+        let unwrapped = self.unwrapped.iter().map(|((id, v, d), _)| ObjectChange {
+            id: *id,
+            input_version: None,
+            input_digest: None,
+            output_version: Some(*v),
+            output_digest: Some(*d),
+            id_operation: IDOperation::None,
+        });
 
-        let deleted = self
-            .deleted
-            .iter()
-            .map(|(id, _, _)| ObjectChange {
-                id: *id,
-                input_version: modified_at.get(id).copied(),
-                input_digest: None,
-                output_version: None,
-                output_digest: None,
-                id_operation: IDOperation::Deleted,
-            });
+        let deleted = self.deleted.iter().map(|(id, _, _)| ObjectChange {
+            id: *id,
+            input_version: modified_at.get(id).copied(),
+            input_digest: None,
+            output_version: None,
+            output_digest: None,
+            id_operation: IDOperation::Deleted,
+        });
 
-        let unwrapped_then_deleted = self
-            .unwrapped_then_deleted
-            .iter()
-            .map(|(id, _, _)| ObjectChange {
-                id: *id,
-                input_version: None,
-                input_digest: None,
-                output_version: None,
-                output_digest: None,
-                id_operation: IDOperation::Deleted,
-            });
+        let unwrapped_then_deleted =
+            self.unwrapped_then_deleted
+                .iter()
+                .map(|(id, _, _)| ObjectChange {
+                    id: *id,
+                    input_version: None,
+                    input_digest: None,
+                    output_version: None,
+                    output_digest: None,
+                    id_operation: IDOperation::Deleted,
+                });
 
-        let wrapped = self
-            .wrapped
-            .iter()
-            .map(|(id, _, _)| ObjectChange {
-                id: *id,
-                input_version: modified_at.get(id).copied(),
-                input_digest: None,
-                output_version: None,
-                output_digest: None,
-                id_operation: IDOperation::None,
-            });
+        let wrapped = self.wrapped.iter().map(|(id, _, _)| ObjectChange {
+            id: *id,
+            input_version: modified_at.get(id).copied(),
+            input_digest: None,
+            output_version: None,
+            output_digest: None,
+            id_operation: IDOperation::None,
+        });
 
         created
             .chain(mutated)

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::object_change::{ObjectIn, ObjectOut};
-use super::{EffectsObjectChange, ObjectChange, IDOperation};
+use super::{EffectsObjectChange, IDOperation, ObjectChange};
 use crate::base_types::{
     EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
     VersionDigest,
