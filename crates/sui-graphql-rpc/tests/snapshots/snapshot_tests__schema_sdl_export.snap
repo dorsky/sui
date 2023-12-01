@@ -41,7 +41,7 @@ enum AddressTransactionBlockRelationship {
 	PAID
 }
 
-type AuthenticatorStateUpdate {
+type AuthenticatorStateUpdateTransaction {
 	value: String!
 }
 
@@ -1253,7 +1253,7 @@ type PageInfo {
 	endCursor: String
 }
 
-type ProgrammableTransaction {
+type ProgrammableTransactionBlock {
 	value: String!
 }
 
@@ -1341,7 +1341,7 @@ type Query {
 	coinMetadata(coinType: String!): CoinMetadata
 }
 
-type RandomnessStateUpdate {
+type RandomnessStateUpdateTransaction {
 	value: String!
 }
 
@@ -1768,7 +1768,7 @@ input TransactionBlockFilter {
 	transactionIds: [String!]
 }
 
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ChangeEpochTransaction | ProgrammableTransaction | AuthenticatorStateUpdate | RandomnessStateUpdate | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ChangeEpochTransaction | ProgrammableTransactionBlock | AuthenticatorStateUpdateTransaction | RandomnessStateUpdateTransaction | EndOfEpochTransaction
 
 enum TransactionBlockKindInput {
 	SYSTEM_TX
