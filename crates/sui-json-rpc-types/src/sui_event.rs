@@ -150,7 +150,6 @@ impl Display for SuiEvent {
         write!(f, "\n └──")
     }
 }
-
 impl SuiEvent {
     pub fn random_for_testing() -> Self {
         Self {
