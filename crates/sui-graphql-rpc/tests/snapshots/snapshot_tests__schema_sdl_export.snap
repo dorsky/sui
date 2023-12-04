@@ -1419,7 +1419,26 @@ type Query {
 }
 
 type RandomnessStateUpdateTransaction {
-	value: String!
+	"""
+	Epoch of the randomness state update transaction.
+	"""
+	epoch: Epoch!
+	"""
+	Consensus round of the randomness state update.
+	"""
+	round: Int!
+	"""
+	Randomness round of the update.
+	"""
+	randomnessRound: Int!
+	"""
+	Updated random bytes, encoded as Base64.
+	"""
+	randomBytes: Base64!
+	"""
+	The initial version the randomness object was shared at.
+	"""
+	randomnessObjInitialSharedVersion: Int!
 }
 
 """

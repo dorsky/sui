@@ -1069,13 +1069,13 @@ Response: {
 task 6 'advance-epoch'. lines 169-169:
 Epoch advanced: 0
 
-task 7 'run-graphql'. lines 171-240:
+task 7 'run-graphql'. lines 171-236:
 Response: {
   "data": {
     "transactionBlockConnection": {
       "nodes": [
         {
-          "digest": "fvUnamxVj1m1M4DZ8dryuzqrjYRvLDHNjexNwxc6HA7",
+          "digest": "GKoYFakg3kNVzzFVWyLUTTYw4h29b2g4Mw2qMWCRsPZe",
           "sender": null,
           "signatures": [
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
@@ -1091,14 +1091,8 @@ Response: {
             "gasBudget": "0"
           },
           "kind": {
-            "__typename": "ChangeEpochTransaction",
-            "epoch": {
-              "epochId": 1
-            },
-            "startTimestamp": "1970-01-01T00:01:25Z",
-            "storageCharge": "0",
-            "computationCharge": "0",
-            "storageRebate": "0"
+            "__typename": "EndOfEpochTransaction",
+            "value": "[ChangeEpoch(ChangeEpoch { epoch: 1, protocol_version: ProtocolVersion(32), storage_charge: 0, computation_charge: 0, storage_rebate: 0, non_refundable_storage_fee: 0, epoch_start_timestamp_ms: 85000, system_packages: [] })]"
           },
           "effects": {
             "status": "SUCCESS",
@@ -1117,7 +1111,7 @@ Response: {
                 "idDeleted": false,
                 "outputState": {
                   "location": "0x0000000000000000000000000000000000000000000000000000000000000005",
-                  "digest": "5jzahJer9cg4yJaBZhjpEAbLtzHcKguzMtFBc1poL5fS"
+                  "digest": "J1C81xskJaop96EsuSZXSxgvodwmMnD9tdDfocXxzrFg"
                 }
               },
               {
@@ -1126,7 +1120,7 @@ Response: {
                 "idDeleted": false,
                 "outputState": {
                   "location": "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1",
-                  "digest": "Y4W89QnJVPhaMeoExCsfdQhF5bs5RELi5xjLgAy1h6a"
+                  "digest": "9QNDPxyWmCL77DX8TYzCxsZsZVnrz9URMmMjLuwnJv35"
                 }
               },
               {
@@ -1141,7 +1135,7 @@ Response: {
                 "idDeleted": false,
                 "outputState": {
                   "location": "0xa84a25da7fef87ac6141a4920a87564ddb5bd8964333f04e7bd49facb831ba43",
-                  "digest": "2dUtbkQSCPJewe9WJsxvAdu1rft1AVXwXMuWYFkYnAxr"
+                  "digest": "BvMPQvK5F7Byp2N2nB97hSuYJ9SQz19NpiiMfBXFQFew"
                 }
               }
             ],
@@ -1162,7 +1156,7 @@ Response: {
               "sequenceNumber": 2
             },
             "transactionBlock": {
-              "digest": "fvUnamxVj1m1M4DZ8dryuzqrjYRvLDHNjexNwxc6HA7"
+              "digest": "GKoYFakg3kNVzzFVWyLUTTYw4h29b2g4Mw2qMWCRsPZe"
             }
           },
           "expiration": null
