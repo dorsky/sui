@@ -51,10 +51,17 @@ sui-types.workspace = true
 sui-archival.workspace = true
 workspace-hack.workspace = true
 move-vm-profiler.workspace = true
+sui-execution = { path = "../../sui-execution" , optional = true}
 
 [[bin]]
 name = "sui-tool"
 path = "src/main.rs"
 
+
 [features]
-#default = ["gas-profiler"]
+default = ["gas-profiler"]
+gas-profiler = [
+    "sui-types/gas-profiler",
+    "sui-execution/gas-profiler",
+    "move-vm-profiler/gas-profiler",
+]
