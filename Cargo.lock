@@ -12096,7 +12096,6 @@ dependencies = [
  "sui-archival",
  "sui-config",
  "sui-core",
- "sui-execution",
  "sui-network",
  "sui-protocol-config",
  "sui-replay",
