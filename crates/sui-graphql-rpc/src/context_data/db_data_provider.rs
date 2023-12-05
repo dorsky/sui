@@ -119,6 +119,8 @@ pub enum DbValidationError {
     QueryCostExceeded(u64, u64),
     #[error("Page size exceeded - requested: {0}, limit: {1}")]
     PageSizeExceeded(u64, u64),
+    #[error("Invalid type provided as filter: {0}")]
+    InvalidType(String),
 }
 pub(crate) struct PgManager {
     pub inner: IndexerReader,

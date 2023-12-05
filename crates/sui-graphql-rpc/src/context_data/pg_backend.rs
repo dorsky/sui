@@ -25,6 +25,7 @@ use sui_indexer::{
     },
     types_v2::OwnerType,
 };
+use sui_types::parse_sui_struct_tag;
 
 pub(crate) struct PgQueryBuilder;
 
@@ -428,15 +429,26 @@ impl GenericQueryBuilder<Pg> for PgQueryBuilder {
             }
 
             // Filters on the event type
-            if let Some(p) = filter.event_package {
-                if let Some(m) = filter.event_module {
-                    if let Some(t) = filter.event_type {
-                        query = query
-                            .filter(events::dsl::event_type.like(format!("{}::{}::{}%", p, m, t)));
-                    }
-                    query = query.filter(events::dsl::event_type.like(format!("{}::{}::%", p, m)));
+            if let Some(event_type) = filter.type_ {
+                let validate_type = parse_sui_struct_tag(&event_type)
+                    .map_err(|e| DbValidationError::InvalidType(e.to_string()))?;
+
+                if validate_type.type_params.is_empty() {
+                    query = query.filter(
+                        events::dsl::event_type
+                            .like(format!(
+                                "{}<%",
+                                validate_type.to_canonical_string(/* with_prefix */ true)
+                            ))
+                            .or(events::dsl::event_type
+                                .eq(validate_type.to_canonical_string(/* with_prefix */ true))),
+                    );
+                } else {
+                    query = query.filter(
+                        events::dsl::event_type
+                            .eq(validate_type.to_canonical_string(/* with_prefix */ true)),
+                    );
                 }
-                query = query.filter(events::dsl::event_type.like(format!("{}::%", p)));
             }
         }
 

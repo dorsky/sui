@@ -30,10 +30,11 @@ pub(crate) struct EventFilter {
     pub emitting_package: Option<SuiAddress>,
     pub emitting_module: Option<String>,
 
-    // Cascading
-    pub event_package: Option<SuiAddress>,
-    pub event_module: Option<String>,
-    pub event_type: Option<String>,
+    /// This field is used to specify the type of event that should be included
+    /// in the query results. Generic types can be queried by either the generic
+    /// type name, e.g. `0x2::the::Event`, or by the full type name, such as
+    /// `0x2::the::Event<0x2::some::Type>`.
+    pub type_: Option<String>,
     // Enhancement (post-MVP)
     // pub start_time
     // pub end_time
