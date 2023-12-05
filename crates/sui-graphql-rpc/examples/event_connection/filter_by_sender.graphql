@@ -9,7 +9,7 @@ query byTxSender {
       endCursor
     }
     nodes {
-      sendingModuleId {
+      sendingModule {
         name
       }
       type {

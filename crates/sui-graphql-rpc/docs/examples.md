@@ -761,7 +761,7 @@
 >      endCursor
 >    }
 >    nodes {
->      sendingModuleId {
+>      sendingModule {
 >        name
 >      }
 >      type {
@@ -791,7 +791,7 @@
 >      endCursor
 >    }
 >    nodes {
->      sendingModuleId {
+>      sendingModule {
 >        name
 >      }
 >      type {
