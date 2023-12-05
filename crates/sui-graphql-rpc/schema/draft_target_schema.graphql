@@ -530,7 +530,7 @@ type Epoch {
   netInflow: BigInt
   fundInflow: BigInt
   fundOutflow: BigInt
-  
+
   # TODO: Identify non-duplicate fields in `EndOfEpochInfo`
 
   checkpointConnection(
@@ -916,14 +916,13 @@ type Event {
   # Module that the event was emitted by
   sendingModule: MoveModule
 
-  # Type of the event being sent
-  eventType: MoveType
-
   senders: [Address]
   timestamp: DateTime
 
-  json: String
-  bcs: Base64
+  type: MoveType!
+  bcs: Base64!
+  data: MoveData!
+  json: JSON!
 }
 
 type Balance {

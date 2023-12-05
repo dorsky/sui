@@ -30,6 +30,8 @@
 #### &emsp;&emsp;[With Tx Block Connection Latest Epoch](#458749)
 ### [Event Connection](#8)
 #### &emsp;&emsp;[Event Connection](#524280)
+#### &emsp;&emsp;[Filter By Emitting Package Module And Event Type](#524281)
+#### &emsp;&emsp;[Filter By Sender](#524282)
 ### [Name Service](#9)
 #### &emsp;&emsp;[Name Service](#589815)
 ### [Object](#10)
@@ -745,7 +747,7 @@
 >  }
 >}</pre>
 
-### <a id=458746></a>
+### <a id=524281></a>
 ### Filter By Emitting Package Module And Event Type
 
 ><pre>query byEmittingPackageModuleAndEventType {
@@ -775,7 +777,7 @@
 >  }
 >}</pre>
 
-### <a id=458747></a>
+### <a id=524282></a>
 ### Filter By Sender
 
 ><pre>query byTxSender {
@@ -1668,3 +1670,4 @@
 >    }
 >  }
 >}</pre>
+
